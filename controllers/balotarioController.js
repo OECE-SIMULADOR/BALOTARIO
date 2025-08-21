@@ -3,7 +3,6 @@
 const Question = require('../models/Question');
 const Result = require('../models/Result');
 const FailedQuestion = require('../models/FailedQuestion'); // Para registrar los errores
-
 /**
  * Recibe las respuestas del usuario, las evalúa, calcula los puntajes,
  * guarda el resultado, registra las preguntas falladas y limpia las acertadas.
