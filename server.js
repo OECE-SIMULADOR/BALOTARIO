@@ -3,7 +3,18 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const cors = require('cors');
+const corsOptions = {
+    origin: [
+    'https://oece-balotarios.netlify.app', 
+    'http://localhost:3000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'x-auth-token'], // Cabeceras permitidas
+  credentials: true
+};
 
+app.use(cors(corsOptions));
 dotenv.config();
 const app = express();
 connectDB();
