@@ -73,59 +73,62 @@ exports.loginUser = async (req, res) => {
     }
 };
 
-// --- FUNCIÓN PARA LOGIN CON GOOGLE ---
+// en controllers/userController.js
+
+// --- FUNCIÓN PARA LOGIN CON GOOGLE (CORREGIDA Y FINAL) ---
 exports.googleLogin = async (req, res) => {
     console.log('\n--- [Google Login] Petición recibida ---');
     const { token } = req.body;
 
     try {
+        // 1. Verificamos el token con Google
         const ticket = await client.verifyIdToken({
             idToken: token,
             audience: process.env.GOOGLE_CLIENT_ID,
         });
 
         const { name, email } = ticket.getPayload();
-      let user = await User.findOne({ email }).select('+password');
         
-       if (!user) {
-    console.log(`Creando nuevo usuario vía Google: ${email}`);
-    
-    // 1. Creamos una contraseña segura y única para este usuario.
-    //    Usamos el email y nuestra clave secreta para que sea determinista pero segura.
-    const password = email + process.env.JWT_SECRET;
-    
-    // 2. Creamos el nuevo usuario, ahora sí con la variable 'password' definida.
-    user = new User({ 
-        name: name, 
-        email: email, 
-        password: password // <-- Ahora 'password' sí existe
-    });
-
-    // 3. ¡IMPORTANTE! Debemos encriptar esta contraseña dummy antes de guardarla,
-    //    para mantener la consistencia de nuestra base de datos.
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
-
-    await user.save();
-}
-
-        // Ahora 'user.password' contendrá el hash de la contraseña desde la BD
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            console.log(`[Login Fallido] Contraseña incorrecta para: ${email}`);
-            return res.status(400).json({ msg: 'Credenciales inválidas.' });
+        // 2. Buscamos al usuario en nuestra base de datos
+        let user = await User.findOne({ email });
+        
+        // 3. Si el usuario no existe, lo creamos
+        if (!user) {
+            console.log(`Creando nuevo usuario vía Google: ${email}`);
+            
+            // Creamos una contraseña dummy segura y la encriptamos
+            const password = email + process.env.JWT_SECRET;
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+            
+            user = new User({ 
+                name: name, 
+                email: email, 
+                password: hashedPassword
+            });
+            await user.save();
+        } else {
+            console.log(`Usuario existente inició sesión vía Google: ${email}`);
         }
-        
-        console.log(`[Login Exitoso] Usuario autenticado: ${email}`);
 
+        // 4. ¡NO HAY COMPARACIÓN DE CONTRASEÑA!
+        // Si llegamos aquí, el usuario es válido (verificado por Google).
+        // Directamente generamos nuestro propio token de sesión.
+        
         const payload = { user: { id: user.id, role: user.role } };
-        jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5h' }, (err, token) => {
-            if (err) throw err;
-            res.json({ token });
-        });
+        
+        jwt.sign(
+            payload,
+            process.env.JWT_SECRET,
+            { expiresIn: '5h' },
+            (err, appToken) => {
+                if (err) throw err;
+                res.json({ token: appToken });
+            }
+        );
         
     } catch (err) {
-        console.error("--- ERROR EN EL PROCESO DE LOGIN ---", err);
+        console.error("--- ERROR EN EL PROCESO DE LOGIN CON GOOGLE ---", err);
         res.status(500).send('Error en el servidor');
     }
 };
