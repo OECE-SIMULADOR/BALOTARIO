@@ -87,10 +87,27 @@ exports.googleLogin = async (req, res) => {
         const { name, email } = ticket.getPayload();
       let user = await User.findOne({ email }).select('+password');
         
-        if (!user) {
-            console.log(`[Login Fallido] Usuario no encontrado: ${email}`);
-            return res.status(400).json({ msg: 'Credenciales inválidas.' });
-        }
+       if (!user) {
+    console.log(`Creando nuevo usuario vía Google: ${email}`);
+    
+    // 1. Creamos una contraseña segura y única para este usuario.
+    //    Usamos el email y nuestra clave secreta para que sea determinista pero segura.
+    const password = email + process.env.JWT_SECRET;
+    
+    // 2. Creamos el nuevo usuario, ahora sí con la variable 'password' definida.
+    user = new User({ 
+        name: name, 
+        email: email, 
+        password: password // <-- Ahora 'password' sí existe
+    });
+
+    // 3. ¡IMPORTANTE! Debemos encriptar esta contraseña dummy antes de guardarla,
+    //    para mantener la consistencia de nuestra base de datos.
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+
+    await user.save();
+}
 
         // Ahora 'user.password' contendrá el hash de la contraseña desde la BD
         const isMatch = await bcrypt.compare(password, user.password);
